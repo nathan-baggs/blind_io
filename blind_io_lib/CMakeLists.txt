@@ -1,5 +1,4 @@
 add_library(blind_io
-    test.cpp
 )
 
 add_library(blind_io::blind_io ALIAS blind_io)

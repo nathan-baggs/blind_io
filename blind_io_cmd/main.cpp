@@ -6,7 +6,6 @@
 
 #include <print>
 
-#include "test.h"
 
 int main()
 {
