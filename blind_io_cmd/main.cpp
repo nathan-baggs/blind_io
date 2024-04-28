@@ -5,11 +5,17 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #include <print>
+#include <stdexcept>
 
+#include "process.h"
+#include "process_utils.h"
 
 int main()
 {
-    std::println("{}", bio::message());
+    for (const auto &proc : bio::find_process("firefox.exe"))
+    {
+        std::println("{} -> {}", proc.name(), proc.pid());
+    }
 
     return 0;
 }
