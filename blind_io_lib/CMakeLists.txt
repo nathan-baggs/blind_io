@@ -1,4 +1,5 @@
 add_library(blind_io
+    memory_region_protection.cpp
     process.cpp
     process_utils.cpp
 )
