@@ -8,10 +8,12 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 
 #include <Windows.h>
 
 #include "auto_release.h"
+#include "memory_region.h"
 
 namespace bio
 {
@@ -45,6 +47,14 @@ class Process
      *   Process name.
      */
     std::string name() const;
+
+    /**
+     * Get all current memory regions fro the process.
+     *
+     * @returns
+     *   Process memory regions.
+     */
+    std::vector<MemoryRegion> memory_regions() const;
 
   private:
     /** Process pid. */
