@@ -58,6 +58,17 @@ class MemoryRegion
      */
     MemoryRegionProtection protection() const;
 
+    /**
+     * Check if this region has a given protection mask.
+     *
+     * @param protection
+     *   The protection to test (can be multiples if combined).
+     *
+     * @returns
+     *   True of region matches supplied protection, otherwise false.
+     */
+    bool test_protection(MemoryRegionProtection protection) const;
+
   private:
     /** Address of region (in process virtual address space). */
     std::uintptr_t address_;

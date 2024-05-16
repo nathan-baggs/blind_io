@@ -31,4 +31,9 @@ MemoryRegionProtection MemoryRegion::protection() const
     return protection_;
 }
 
+bool MemoryRegion::test_protection(MemoryRegionProtection protection) const
+{
+    return (protection_ & protection) == protection;
+}
+
 }
