@@ -7,9 +7,11 @@
 #pragma once
 
 #include <cstdint>
+#include <span>
 #include <string>
 #include <vector>
 
+#define NOMINMAX
 #include <Windows.h>
 
 #include "auto_release.h"
@@ -55,6 +57,28 @@ class Process
      *   Process memory regions.
      */
     std::vector<MemoryRegion> memory_regions() const;
+
+    /**
+     * Read a region of memory.
+     *
+     * @param region
+     *   The region to read.
+     *
+     * @returns
+     *   The read region.
+     */
+    std::vector<std::uint8_t> read(const MemoryRegion &region) const;
+
+    /**
+     * Write data to the supplied region.
+     *
+     * @param region
+     *   The region to write to.
+     *
+     * @param data
+     *   The data to write (must not be larger than region).
+     */
+    void write(const MemoryRegion &region, std::span<const std::uint8_t> data) const;
 
   private:
     /** Process pid. */

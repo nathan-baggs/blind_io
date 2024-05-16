@@ -6,12 +6,14 @@
 
 #include "process.h"
 
+#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <print>
 #include <stdexcept>
 #include <string>
 #include <vector>
+
 
 #include <Windows.h>
 
@@ -56,7 +58,7 @@ namespace bio
 
 Process::Process(std::uint32_t pid)
     : pid_(pid)
-    , handle_(::OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pid_), ::CloseHandle)
+    , handle_(::OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ | PROCESS_VM_WRITE, FALSE, pid_), ::CloseHandle)
 {
     if (!handle_)
     {
@@ -118,6 +120,29 @@ std::vector<MemoryRegion> Process::memory_regions() const
     }
 
     return regions;
+}
+
+std::vector<std::uint8_t> Process::read(const MemoryRegion &region) const
+{
+    std::vector<std::uint8_t> mem(region.size());
+
+    if (::ReadProcessMemory(handle_, reinterpret_cast<void *>(region.address()), mem.data(), mem.size(), nullptr) == 0)
+    {
+        throw std::runtime_error("failed to read memory region");
+    }
+
+    return mem;
+}
+
+void Process::write(const MemoryRegion &region, std::span<const std::uint8_t> data) const
+{
+    assert(data.size() <= region.size());
+
+    if (::WriteProcessMemory(handle_, reinterpret_cast<void *>(region.address()), data.data(), data.size(), nullptr) ==
+        0)
+    {
+        throw std::runtime_error("failed to write memory");
+    }
 }
 
 }
