@@ -13,6 +13,7 @@
 #include <fstream>
 #include <memory>
 #include <print>
+#include <ranges>
 #include <regex>
 #include <sstream>
 #include <stdexcept>
