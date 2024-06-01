@@ -8,7 +8,12 @@ add_library(blind_io
 add_library(blind_io::blind_io ALIAS blind_io)
 
 target_compile_features(blind_io PUBLIC cxx_std_23)
+
+if(WIN32)
 target_compile_options(blind_io PUBLIC /W4 /WX)
+elseif(LINUX)
+    target_compile_options(blind_io PUBLIC -Wall -Werror -Wextra -pedantic)
+endif()
 
 target_include_directories(
     blind_io
