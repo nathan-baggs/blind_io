@@ -58,9 +58,9 @@ void replace_memory(
     auto mem = process.read(region);
     auto mem_span = std::span(mem);
 
-    auto remaining_ocurrences = num_occurrences.value_or(std::numeric_limits<std::size_t>::max());
+    auto remaining_occurrences = num_occurrences.value_or(std::numeric_limits<std::size_t>::max());
 
-    while (!mem_span.empty() && (remaining_ocurrences > 0))
+    while (!mem_span.empty() && (remaining_occurrences > 0))
     {
         if (const auto found = std::ranges::search(mem_span, find); !found.empty())
         {
@@ -71,7 +71,7 @@ void replace_memory(
             process.write(region, mem);
 
             mem_span = mem_span.subspan(begin);
-            --remaining_ocurrences;
+            --remaining_occurrences;
         }
         else
         {
