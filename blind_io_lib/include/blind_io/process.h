@@ -12,7 +12,6 @@
 #include <string>
 #include <vector>
 
-#include "auto_release.h"
 #include "memory_region.h"
 
 namespace bio
