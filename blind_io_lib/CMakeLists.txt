@@ -1,7 +1,6 @@
 add_library(blind_io
     memory_region.cpp
     memory_region_protection.cpp
-    process.cpp
     process_utils.cpp
 )
 
@@ -13,6 +12,7 @@ if(WIN32)
 target_compile_options(blind_io PUBLIC /W4 /WX)
 elseif(LINUX)
     target_compile_options(blind_io PUBLIC -Wall -Werror -Wextra -pedantic)
+    add_subdirectory(linux)
 endif()
 
 target_include_directories(

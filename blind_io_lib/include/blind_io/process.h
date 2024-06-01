@@ -7,12 +7,10 @@
 #pragma once
 
 #include <cstdint>
+#include <memory>
 #include <span>
 #include <string>
 #include <vector>
-
-#define NOMINMAX
-#include <Windows.h>
 
 #include "auto_release.h"
 #include "memory_region.h"
@@ -33,6 +31,10 @@ class Process
      *   Pid of process.
      */
     Process(std::uint32_t pid);
+
+    ~Process();
+    Process(Process &&);
+    Process &operator=(Process &&);
 
     /**
      * Get process pid.
@@ -81,11 +83,10 @@ class Process
     void write(const MemoryRegion &region, std::span<const std::uint8_t> data) const;
 
   private:
-    /** Process pid. */
-    std::uint32_t pid_;
+    struct implementation;
 
-    /** Win32 windows handle to process. */
-    AutoRelease<HANDLE> handle_;
+    /** Pointer to implementation. */
+    std::unique_ptr<implementation> impl_;
 };
 
 }
