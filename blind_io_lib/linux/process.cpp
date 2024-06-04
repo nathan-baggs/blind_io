@@ -10,6 +10,7 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
 #include <fstream>
 #include <memory>
 #include <print>
@@ -20,6 +21,8 @@
 #include <string>
 #include <string_view>
 #include <vector>
+
+#include <sys/uio.h>
 
 #include "memory_region.h"
 #include "memory_region_protection.h"
@@ -158,14 +161,49 @@ std::vector<MemoryRegion> Process::memory_regions() const
     return regions;
 }
 
-std::vector<std::uint8_t> Process::read([[maybe_unused]] const MemoryRegion &region) const
+std::vector<std::uint8_t> Process::read(const MemoryRegion &region) const
 {
-    return {};
+    std::vector<std::uint8_t> mem(region.size());
+
+    ::iovec local{.iov_base = mem.data(), .iov_len = mem.size()};
+    ::iovec remote{.iov_base = reinterpret_cast<void *>(region.address()), .iov_len = region.size()};
+
+    if (::process_vm_readv(impl_->pid, &local, 1, &remote, 1, 0) != static_cast<ssize_t>(region.size()))
+    {
+        throw std::runtime_error("failed to read memory region");
+    }
+
+    return mem;
 }
 
-void Process::write([[maybe_unused]] const MemoryRegion &region, [[maybe_unused]] std::span<const std::uint8_t> data)
-    const
+void Process::write(const MemoryRegion &region, std::span<const std::uint8_t> data) const
 {
+    assert(data.size() <= region.size());
+
+    ::iovec local{.iov_base = const_cast<void *>(reinterpret_cast<const void *>(data.data())), .iov_len = data.size()};
+    ::iovec remote{.iov_base = reinterpret_cast<void *>(region.address()), .iov_len = data.size()};
+
+    if (::process_vm_writev(impl_->pid, &local, 1, &remote, 1, 0) != static_cast<ssize_t>(data.size()))
+    {
+        throw std::runtime_error("failed to write memory");
+    }
+}
+
+std::vector<Thread> Process::threads() const
+{
+    std::vector<Thread> tids{};
+
+    for (const auto &entry : std::filesystem::directory_iterator(std::format("/proc/{}/task", impl_->pid)) |
+                                 std::views::filter([](const auto &e) { return e.is_directory(); }))
+    {
+        const auto tid = entry.path().filename().string();
+        if (std::ranges::all_of(tid, isdigit))
+        {
+            tids.push_back(Thread{static_cast<std::uint32_t>(std::stoi(tid))});
+        }
+    }
+
+    return tids;
 }
 
 }

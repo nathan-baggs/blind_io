@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "memory_region.h"
+#include "thread.h"
 
 namespace bio
 {
@@ -80,6 +81,14 @@ class Process
      *   The data to write (must not be larger than region).
      */
     void write(const MemoryRegion &region, std::span<const std::uint8_t> data) const;
+
+    /**
+     * Get all the threads of the current process.
+     *
+     * @returns
+     *   Collection of threads for the process.
+     */
+    std::vector<Thread> threads() const;
 
   private:
     struct implementation;
