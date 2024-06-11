@@ -26,8 +26,6 @@ int main()
 
     auto &proc = procs.front();
 
-    auto tid = proc.pid();
-
     std::println("{} -> {}", proc.name(), proc.pid());
 
     for (const auto &thread : proc.threads())
@@ -36,22 +34,7 @@ int main()
     }
 
     bio::Debugger dbg{std::move(proc)};
-
-    [[maybe_unused]] const auto regs = dbg.registers(tid);
-
-    std::this_thread::sleep_for(10s);
-
-    // for (const auto &proc : bio::find_process("vim"))
-    //{
-    //     std::println("{} -> {}", proc.name(), proc.pid());
-    //     for (const auto &region : proc.memory_regions())
-    //     {
-    //         if (region.test_protection(bio::MemoryRegionProtection::READ | bio::MemoryRegionProtection::WRITE))
-    //         {
-    //             bio::replace_memory(proc, region, "vorpal", "VORPAL");
-    //         }
-    //     }
-    // }
+    dbg.allocate(4096);
 
     return 0;
 }
