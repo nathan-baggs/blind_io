@@ -38,6 +38,17 @@ class Debugger
      */
     Registers registers(std::uint32_t tid) const;
 
+    /**
+     * Allocate some memory into the process. Will be read, write executable.
+     *
+     * @param bytes
+     *   THe number of bytes to allocate, should be a multiple of the page size.
+     *
+     * @returns
+     *   A region describing the new allocated memory.
+     */
+    MemoryRegion allocate(std::size_t bytes) const;
+
   private:
     /** The process being debugged. */
     Process process_;
