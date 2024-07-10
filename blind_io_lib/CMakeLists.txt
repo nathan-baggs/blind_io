@@ -2,6 +2,7 @@ add_library(blind_io
     memory_region.cpp
     memory_region_protection.cpp
     process_utils.cpp
+    utils.cpp
 )
 
 add_library(blind_io::blind_io ALIAS blind_io)
