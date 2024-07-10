@@ -8,6 +8,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <string>
 
 #include "memory_region_protection.h"
 
@@ -31,8 +32,15 @@ class MemoryRegion
      *
      * @param protection
      *   Flags representing memory protection properties.
+     *
+     * @param name
+     *   Optional (platform specific) name for the region.
      */
-    MemoryRegion(std::uintptr_t address, std::size_t size, MemoryRegionProtection protection);
+    MemoryRegion(
+        std::uintptr_t address,
+        std::size_t size,
+        MemoryRegionProtection protection,
+        const std::string &name = {});
 
     /**
      * Address of region (in process virtual address space).
@@ -59,6 +67,14 @@ class MemoryRegion
     MemoryRegionProtection protection() const;
 
     /**
+     * Get the (platform specific) name of the region, maybe empty.
+     *
+     * @returns
+     *   Region name.
+     */
+    std::string name() const;
+
+    /**
      * Check if this region has a given protection mask.
      *
      * @param protection
@@ -78,6 +94,9 @@ class MemoryRegion
 
     /** Protection properties. */
     MemoryRegionProtection protection_;
+
+    /** Optional (platform specific) region name. */
+    std::string name_;
 };
 
 }
