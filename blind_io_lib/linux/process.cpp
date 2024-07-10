@@ -8,15 +8,12 @@
 
 #include <algorithm>
 #include <cassert>
-#include <cstddef>
 #include <cstdint>
 #include <filesystem>
-#include <fstream>
 #include <memory>
 #include <print>
 #include <ranges>
 #include <regex>
-#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -26,34 +23,12 @@
 
 #include "memory_region.h"
 #include "memory_region_protection.h"
+#include "utils.h"
 
 using namespace std::literals;
 
 namespace
 {
-
-/**
- * Helper function to read file.
- *
- * @param path
- *   Path of file to read.
- *
- * @returns
- *   Contents of file as a string.
- */
-std::string read_file(const std::string &path)
-{
-    const std::ifstream file{path};
-    if (!file.is_open() || !file.good() || file.bad())
-    {
-        throw std::runtime_error("failed to read file");
-    }
-
-    std::stringstream strm{};
-    strm << file.rdbuf();
-
-    return strm.str();
-}
 
 /**
  * Helper function to convert a linux memory protection value into our internal library type.
