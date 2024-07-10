@@ -21,7 +21,7 @@ using namespace std::literals;
 
 int main()
 {
-    auto procs = bio::find_process("vim");
+    auto procs = bio::find_process("tail");
     assert(procs.size() == 1);
 
     auto &proc = procs.front();
@@ -34,7 +34,7 @@ int main()
     }
 
     bio::Debugger dbg{std::move(proc)};
-    dbg.allocate(4096);
+    dbg.load_library("/tmp/libtest.so");
 
     return 0;
 }
