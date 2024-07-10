@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <string_view>
 
 #include "process.h"
 #include "registers.h"
@@ -42,12 +43,20 @@ class Debugger
      * Allocate some memory into the process. Will be read, write executable.
      *
      * @param bytes
-     *   THe number of bytes to allocate, should be a multiple of the page size.
+     *   The number of bytes to allocate, should be a multiple of the page size.
      *
      * @returns
      *   A region describing the new allocated memory.
      */
     MemoryRegion allocate(std::size_t bytes) const;
+
+    /**
+     * Load a library into the running process.
+     *
+     * @param path
+     *   Path of library to load.
+     */
+    void load_library(std::string_view path) const;
 
   private:
     /** The process being debugged. */
