@@ -134,7 +134,7 @@ std::vector<MemoryRegion> Process::memory_regions() const
 
     // memory region has following format in maps file:
     // start-end prot ...
-    std::regex map_regex{"([a-f0-9]+)-([a-f0-9]+)\\s([rwxp-]{4}).*"};
+    std::regex map_regex{"([a-f0-9]+)-([a-f0-9]+)\\s([rwxp-]{4}).*\\s+(.*)$"};
 
     for (const auto &line :
          std::views::split(maps, '\n') |
@@ -145,7 +145,7 @@ std::vector<MemoryRegion> Process::memory_regions() const
 
         if (std::regex_search(line, matches, map_regex))
         {
-            if (matches.size() == 4)
+            if (matches.size() == 5)
             {
                 const auto start = std::stoll(matches[1].str(), nullptr, 16);
                 const auto end = std::stoll(matches[2].str(), nullptr, 16);
@@ -153,7 +153,8 @@ std::vector<MemoryRegion> Process::memory_regions() const
                 regions.push_back(
                     {static_cast<std::uintptr_t>(start),
                      static_cast<std::size_t>(end - start),
-                     to_native(matches[3].str())});
+                     to_native(matches[3].str()),
+                     matches[4].str()});
             }
         }
     }
