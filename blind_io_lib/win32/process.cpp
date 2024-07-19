@@ -13,11 +13,13 @@
 #include <print>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include <Windows.h>
 
 #include <Psapi.h>
+#include <tlhelp32.h>
 
 #include "auto_release.h"
 #include "memory_region.h"
@@ -161,4 +163,35 @@ void Process::write(const MemoryRegion &region, std::span<const std::uint8_t> da
     }
 }
 
+std::vector<Thread> Process::threads() const
+{
+    std::vector<Thread> threads{};
+
+    // get a snapshot of all running threads
+    AutoRelease<HANDLE> snapshot{::CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, impl_->pid), ::CloseHandle};
+    if (static_cast<HANDLE>(snapshot.get()) == INVALID_HANDLE_VALUE)
+    {
+        throw std::runtime_error("faield to get thread snapshot");
+    }
+
+    ::THREADENTRY32 thread_entry{};
+    thread_entry.dwSize = sizeof(thread_entry);
+
+    // get the first thread
+    if (!::Thread32First(snapshot, &thread_entry))
+    {
+        throw std::runtime_error("failed to get first thread");
+    }
+
+    // loop through all threads searching for the ones that belong to our process
+    do
+    {
+        if (thread_entry.th32OwnerProcessID == impl_->pid)
+        {
+            threads.push_back(Thread{thread_entry.th32ThreadID});
+        }
+    } while (::Thread32Next(snapshot, &thread_entry));
+
+    return threads;
+}
 }
