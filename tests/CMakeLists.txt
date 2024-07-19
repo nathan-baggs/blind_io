@@ -11,4 +11,4 @@ add_executable(unit_tests
 )
 
 target_link_libraries(unit_tests blind_io gmock_main)
-gtest_discover_tests(unit_tests)
+gtest_discover_tests(unit_tests DISCOVERY_MODE PRE_TEST)
