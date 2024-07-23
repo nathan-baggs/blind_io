@@ -9,6 +9,7 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <locale>
 #include <memory>
 #include <print>
 #include <stdexcept>
@@ -24,6 +25,7 @@
 #include "auto_release.h"
 #include "memory_region.h"
 #include "memory_region_protection.h"
+#include "process_utils.h"
 
 namespace
 {
@@ -141,10 +143,14 @@ std::vector<MemoryRegion> Process::memory_regions() const
 
 std::vector<std::uint8_t> Process::read(const MemoryRegion &region) const
 {
-    std::vector<std::uint8_t> mem(region.size());
+    return read(region.address(), region.size());
+}
 
-    if (::ReadProcessMemory(
-            impl_->handle, reinterpret_cast<void *>(region.address()), mem.data(), mem.size(), nullptr) == 0)
+std::vector<std::uint8_t> Process::read(std::uintptr_t address, std::size_t size) const
+{
+    std::vector<std::uint8_t> mem(size);
+
+    if (::ReadProcessMemory(impl_->handle, reinterpret_cast<void *>(address), mem.data(), mem.size(), nullptr) == 0)
     {
         throw std::runtime_error("failed to read memory region");
     }
@@ -193,5 +199,119 @@ std::vector<Thread> Process::threads() const
     } while (::Thread32Next(snapshot, &thread_entry));
 
     return threads;
+}
+
+std::vector<RemoteFunction> Process::address_of_function(std::string_view name) const
+{
+    std::vector<RemoteFunction> functions{};
+
+    std::vector<HMODULE> modules(1024u);
+    DWORD bytes_needed = 0u;
+
+    // enumerate all modules in the process
+    do
+    {
+        // windows won'tm tell us how many modules are loaded in the process, so we keep trying with larger buffers
+        // until we think we've got them all
+        modules.resize(modules.size() * 2u);
+
+        if (::K32EnumProcessModules(
+                impl_->handle, modules.data(), static_cast<DWORD>(modules.size() * sizeof(HMODULE)), &bytes_needed) ==
+            0)
+        {
+            throw std::runtime_error("failed to get process modules");
+        }
+    } while (bytes_needed >= modules.size() * sizeof(HMODULE));
+
+    // need to resize to the actual number of modules
+    modules.resize(bytes_needed / sizeof(HMODULE));
+
+    // parse all modules and search for our function in their exports
+    for (const auto module : modules)
+    {
+        // get the full path of the module
+        char module_name[MAX_PATH];
+        if (::GetModuleFileNameExA(impl_->handle, module, module_name, sizeof(module_name)) == 0)
+        {
+            throw std::runtime_error("failed to get module name");
+        }
+
+        // shroten the module name to just the file name
+        const auto last_slash = std::string_view{module_name}.find_last_of('\\');
+        const std::string module_name_short(std::string_view{module_name}.substr(last_slash + 1));
+
+        ::MODULEINFO module_info{};
+        if (::K32GetModuleInformation(impl_->handle, module, &module_info, sizeof(module_info)) == 0)
+        {
+            throw std::runtime_error("failed to get module information");
+        }
+
+        const auto module_start = reinterpret_cast<std::uintptr_t>(module_info.lpBaseOfDll);
+
+        // read the dos header and verify it
+        const auto dos_header = read_object<::IMAGE_DOS_HEADER>(*this, module_start);
+        if (dos_header.e_magic != IMAGE_DOS_SIGNATURE)
+        {
+            throw std::runtime_error("invalid dos header");
+        }
+
+        // read the nt header and verify it
+        const auto nt_image_header = read_object<::IMAGE_NT_HEADERS64>(*this, module_start + dos_header.e_lfanew);
+        if (nt_image_header.Signature != IMAGE_NT_SIGNATURE)
+        {
+            throw std::runtime_error("failed to read nt image header");
+        }
+
+        if (nt_image_header.OptionalHeader.Magic != IMAGE_NT_OPTIONAL_HDR64_MAGIC)
+        {
+            throw std::runtime_error("failed to read optional header");
+        }
+
+        // get the address of the module export directory
+        const auto export_directory_virtual_address =
+            nt_image_header.OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress;
+
+        const auto export_directory =
+            read_object<::IMAGE_EXPORT_DIRECTORY>(*this, module_start + export_directory_virtual_address);
+
+        // get the offsets to the various tables needed to resolve function names
+        const auto function_name_table =
+            read_objects<DWORD>(*this, module_start + export_directory.AddressOfNames, export_directory.NumberOfNames);
+        const auto function_address_table = read_objects<DWORD>(
+            *this, module_start + export_directory.AddressOfFunctions, export_directory.NumberOfFunctions);
+        const auto function_ordinal_table = read_objects<WORD>(
+            *this, module_start + export_directory.AddressOfNameOrdinals, export_directory.NumberOfNames);
+
+        // go through each function name entry and resolve the function name itself
+        for (auto index = 0u; const auto function_name_offset : function_name_table)
+        {
+            std::string function_name{};
+
+            // the actual function names are stored contigulously in an array of null terminated strings, so no real
+            // option but to read them characte by character
+            for (;;)
+            {
+                const auto next_char =
+                    read_object<char>(*this, module_start + function_name_offset + function_name.length());
+                if (next_char == '\0')
+                {
+                    break;
+                }
+
+                function_name.push_back(next_char);
+            }
+
+            if (function_name == name)
+            {
+                // do the index to ordinal lookup to address lookup dance in order to get the actual function offset
+                const auto address = module_start + function_address_table[function_ordinal_table[index]];
+                functions.push_back({module_name_short, function_name, address});
+            }
+
+            ++index;
+        }
+    }
+
+    return functions;
 }
 }

@@ -8,8 +8,10 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <span>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "memory_region.h"
@@ -17,6 +19,21 @@
 
 namespace bio
 {
+
+/**
+ * This struct represents a remote function in a process.
+ */
+struct RemoteFunction
+{
+    /** The library name the function is in. */
+    std::string library_name;
+
+    /** The function name. */
+    std::string name;
+
+    /** The address of the function. */
+    std::uintptr_t address;
+};
 
 /**
  * This class represents a view onto a running process and provides methods for interacting with it.
@@ -72,6 +89,20 @@ class Process
     std::vector<std::uint8_t> read(const MemoryRegion &region) const;
 
     /**
+     * Read a region of memory.
+     *
+     * @param address
+     *   The address (in the process) to read from.
+     *
+     * @param size
+     *   The size of the region to read in bytes.
+     *
+     * @returns
+     *   The read region.
+     */
+    std::vector<std::uint8_t> read(std::uintptr_t address, std::size_t size) const;
+
+    /**
      * Write data to the supplied region.
      *
      * @param region
@@ -89,6 +120,20 @@ class Process
      *   Collection of threads for the process.
      */
     std::vector<Thread> threads() const;
+
+    /**
+     * Find the address of a function in the process.
+     *
+     * Note that this function will search all loaded libraries in the process for the function, so may return multiple
+     * results.
+     *
+     * @param name
+     *   The name of the function to search for.
+     *
+     * @returns
+     *   Collection of remote functions.
+     */
+    std::vector<RemoteFunction> address_of_function(std::string_view name) const;
 
   private:
     struct implementation;
