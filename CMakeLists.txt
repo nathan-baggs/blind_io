@@ -14,8 +14,11 @@ FetchContent_Declare(
     GIT_TAG v1.14.0)
 FetchContent_GetProperties(googletest)
 
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 add_subdirectory(blind_io_lib)
 add_subdirectory(blind_io_cmd)
+add_subdirectory(support_corpus)
 
 enable_testing()
 include(CTest)
