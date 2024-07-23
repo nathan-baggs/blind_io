@@ -21,3 +21,5 @@ ExperimentalAutoDetectBinPacking: false
 PointerAlignment: Right
 AlwaysBreakTemplateDeclarations: Yes
 AllowShortCaseLabelsOnASingleLine: true
+IndentExternBlock: NoIndent
+InsertNewlineAtEOF: true
