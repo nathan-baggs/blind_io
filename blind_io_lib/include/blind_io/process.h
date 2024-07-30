@@ -7,6 +7,7 @@
 #pragma once
 
 #include <cstdint>
+#include <filesystem>
 #include <memory>
 #include <optional>
 #include <span>
@@ -15,6 +16,7 @@
 #include <vector>
 
 #include "memory_region.h"
+#include "memory_region_protection.h"
 #include "thread.h"
 
 namespace bio
@@ -114,12 +116,78 @@ class Process
     void write(const MemoryRegion &region, std::span<const std::uint8_t> data) const;
 
     /**
+     * Write data to the supplied address.
+     *
+     * @param address
+     *   The address to write to.
+     *
+     * @param data
+     *   The data to write.
+     */
+    void write(std::uintptr_t address, std::span<const std::uint8_t> data) const;
+
+    /**
+     * Set the protection of a memory region.
+     *
+     * @param address
+     *   The address of the region to set the protection of.
+     *
+     * @param new_protection
+     *   The new protection to set.
+     */
+    void set_protection(std::uintptr_t address, MemoryRegionProtection new_protection) const;
+
+    /**
+     * Allocate a region of memory in the process.
+     *
+     * @param bytes
+     *   The size of the region to allocate in bytes.
+     *
+     * @returns
+     *   The allocated region.
+     */
+    MemoryRegion allocate(std::size_t bytes) const;
+
+    /**
+     * Try and allocate a region of memory in the process at a given address.
+     *
+     * @param address
+     *   The address to allocate the region at.
+     *
+     * @param bytes
+     *   The size of the region to allocate in bytes.
+     *
+     * @returns
+     *   The allocated region.
+     */
+    std::optional<MemoryRegion> allocate(std::uintptr_t address, std::size_t bytes) const;
+
+    /**
      * Get all the threads of the current process.
      *
      * @returns
      *   Collection of threads for the process.
      */
     std::vector<Thread> threads() const;
+
+    /**
+     * Load a library into the process.
+     *
+     * @param path
+     *   The path to the library to load.
+     */
+    void load_library(const std::filesystem::path &path) const;
+
+    /**
+     * Set a hook in the process.
+     *
+     * @param insert_address
+     *   The address to insert the hook at.
+     *
+     * @param hook_address
+     *   The address of the hook function.
+     */
+    void set_hook(std::uintptr_t insert_address, std::uintptr_t hook_address) const;
 
     /**
      * Find the address of a function in the process.

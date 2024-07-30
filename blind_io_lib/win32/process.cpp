@@ -6,17 +6,22 @@
 
 #include "process.h"
 
+#include <algorithm>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
+#include <limits>
 #include <locale>
 #include <memory>
+#include <optional>
 #include <print>
 #include <stdexcept>
 #include <string>
 #include <thread>
 #include <vector>
 
+#define NOMINMAX
 #include <Windows.h>
 
 #include <Psapi.h>
@@ -56,6 +61,42 @@ bio::MemoryRegionProtection to_internal(DWORD protection)
     return bio::MemoryRegionProtection::NO_PROTECTION;
 }
 
+/**
+ * Helper function to convert a library memory protection value into a win32 type.
+ *
+ * @param protection
+ *   Protection presented as a library type.
+ *
+ * @returns
+ *   Win32 protection value.
+ */
+DWORD to_native(bio::MemoryRegionProtection protection)
+{
+    if (protection == bio::MemoryRegionProtection::EXECUTE)
+    {
+        return PAGE_EXECUTE;
+    }
+    if (protection == bio::MemoryRegionProtection::READ)
+    {
+        return PAGE_READONLY;
+    }
+    if (protection == (bio::MemoryRegionProtection::READ | bio::MemoryRegionProtection::WRITE))
+    {
+        return PAGE_READWRITE;
+    }
+    if (protection == (bio::MemoryRegionProtection::READ | bio::MemoryRegionProtection::EXECUTE))
+    {
+        return PAGE_EXECUTE_READ;
+    }
+    if (protection ==
+        (bio::MemoryRegionProtection::READ | bio::MemoryRegionProtection::WRITE | bio::MemoryRegionProtection::EXECUTE))
+    {
+        return PAGE_EXECUTE_READWRITE;
+    }
+
+    return 0;
+}
+
 }
 
 namespace bio
@@ -73,7 +114,8 @@ Process::Process(std::uint32_t pid)
 {
     impl_->pid = pid;
     impl_->handle = AutoRelease<HANDLE>{
-        ::OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ | PROCESS_VM_WRITE, FALSE, impl_->pid),
+        ::OpenProcess(
+            PROCESS_QUERY_INFORMATION | PROCESS_VM_READ | PROCESS_VM_WRITE | PROCESS_VM_OPERATION, FALSE, impl_->pid),
         ::CloseHandle};
     if (!impl_->handle)
     {
@@ -161,12 +203,71 @@ std::vector<std::uint8_t> Process::read(std::uintptr_t address, std::size_t size
 void Process::write(const MemoryRegion &region, std::span<const std::uint8_t> data) const
 {
     assert(data.size() <= region.size());
+    write(region.address(), data);
+}
 
-    if (::WriteProcessMemory(
-            impl_->handle, reinterpret_cast<void *>(region.address()), data.data(), data.size(), nullptr) == 0)
+void Process::write(std::uintptr_t address, std::span<const std::uint8_t> data) const
+{
+    if (::WriteProcessMemory(impl_->handle, reinterpret_cast<void *>(address), data.data(), data.size(), nullptr) == 0)
     {
+        std::println("{}", ::GetLastError());
         throw std::runtime_error("failed to write memory");
     }
+}
+
+void Process::set_protection(std::uintptr_t address, MemoryRegionProtection new_protection) const
+{
+    const auto regions = memory_regions();
+    const auto region = std::ranges::find_if(
+        regions,
+        [address](const auto &region)
+        { return std::clamp(address, region.address(), region.address() + region.size()) == address; });
+
+    if (region == std::ranges::cend(regions))
+    {
+        throw std::runtime_error("address not in any region");
+    }
+
+    DWORD old_protection{};
+
+    if (::VirtualProtectEx(
+            impl_->handle,
+            reinterpret_cast<void *>(region->address()),
+            region->size(),
+            to_native(new_protection),
+            &old_protection) == 0)
+    {
+        std::println("{}", ::GetLastError());
+        throw std::runtime_error("failed to set protection");
+    }
+}
+
+MemoryRegion Process::allocate(std::size_t bytes) const
+{
+    const auto address =
+        ::VirtualAllocEx(impl_->handle, nullptr, bytes, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+    if (address == nullptr)
+    {
+        throw std::runtime_error("failed to allocate memory");
+    }
+
+    return {
+        reinterpret_cast<std::uintptr_t>(address),
+        bytes,
+        MemoryRegionProtection::READ | MemoryRegionProtection::WRITE | MemoryRegionProtection::EXECUTE};
+}
+
+std::optional<MemoryRegion> Process::allocate(std::uintptr_t address, std::size_t bytes) const
+{
+    const auto alloc_address = ::VirtualAllocEx(
+        impl_->handle, reinterpret_cast<void *>(address), bytes, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+
+    return alloc_address == nullptr
+               ? std::nullopt
+               : std::make_optional<MemoryRegion>(
+                     reinterpret_cast<std::uintptr_t>(alloc_address),
+                     bytes,
+                     MemoryRegionProtection::READ | MemoryRegionProtection::WRITE | MemoryRegionProtection::EXECUTE);
 }
 
 std::vector<Thread> Process::threads() const
@@ -199,6 +300,86 @@ std::vector<Thread> Process::threads() const
     } while (::Thread32Next(snapshot, &thread_entry));
 
     return threads;
+}
+
+void Process::load_library(const std::filesystem::path &path) const
+{
+    // allocate some space in the remote process to store the path to the library
+    const auto path_mem = allocate(4096u);
+    const auto path_str = std::filesystem::absolute(path).string();
+    write(path_mem, std::span{reinterpret_cast<const std::uint8_t *>(path_str.data()), path_str.size()});
+
+    // create a remote thread to load the library
+    AutoRelease<HANDLE> thread{::CreateRemoteThread(
+        impl_->handle,
+        nullptr,
+        0,
+        reinterpret_cast<LPTHREAD_START_ROUTINE>(::LoadLibraryA),
+        reinterpret_cast<void *>(path_mem.address()),
+        0,
+        nullptr)};
+    if (!thread)
+    {
+        throw std::runtime_error("failed to create thread");
+    }
+}
+
+void Process::set_hook(std::uintptr_t insert_address, std::uintptr_t hook_address) const
+{
+    // we need to allocate some memory in the remote process to store the detour code
+    // it needs to be no more than a 32 bite signed relative jump away
+    const auto max_offset = std::numeric_limits<std::int32_t>::max();
+    const auto max_page_offset = ((max_offset / 4096) * 4096) - (4096 * 2);
+    const auto insert_address_page = (insert_address / 4096) * 4096;
+
+    std::uintptr_t detour_address{};
+
+    // keep trying to allocate memory at different offsets until we find one that works
+    for (auto offset = -max_offset; offset < max_page_offset; offset += 4096)
+    {
+        if (const auto alloc = allocate(insert_address_page + offset, 4096u); alloc)
+        {
+            detour_address = alloc->address();
+            break;
+        }
+    }
+
+    if (detour_address == 0u)
+    {
+        throw std::runtime_error("failed to allocate detour memory");
+    }
+
+    // mov r10, hook_address
+    // jmp r10
+    const std::uint8_t detour_code[] = {
+        0x49,
+        0xBA,
+        (hook_address >> 0) & 0xFF,
+        (hook_address >> 8) & 0xFF,
+        (hook_address >> 16) & 0xFF,
+        (hook_address >> 24) & 0xFF,
+        (hook_address >> 32) & 0xFF,
+        (hook_address >> 40) & 0xFF,
+        (hook_address >> 48) & 0xFF,
+        (hook_address >> 56) & 0xFF,
+        0x41,
+        0xFF,
+        0xE2};
+
+    write(detour_address, detour_code);
+
+    // account for the fact that the offset includes the size of the jmp instruction
+    detour_address = detour_address - insert_address - 5;
+
+    // jmp detour_address
+    const std::uint8_t hook_code[] = {
+        0xe9,
+        (detour_address >> 0) & 0xFF,
+        (detour_address >> 8) & 0xFF,
+        (detour_address >> 16) & 0xFF,
+        (detour_address >> 24) & 0xFF};
+
+    write(insert_address, hook_code);
 }
 
 std::vector<RemoteFunction> Process::address_of_function(std::string_view name) const
