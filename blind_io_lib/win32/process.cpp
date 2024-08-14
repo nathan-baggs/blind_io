@@ -324,7 +324,7 @@ void Process::load_library(const std::filesystem::path &path) const
     }
 }
 
-void Process::set_hook(std::uintptr_t insert_address, std::uintptr_t hook_address) const
+HookContext Process::set_hook(std::uintptr_t insert_address, std::uintptr_t hook_address) const
 {
     // we need to allocate some memory in the remote process to store the detour code
     // it needs to be no more than a 32 bite signed relative jump away
@@ -366,7 +366,14 @@ void Process::set_hook(std::uintptr_t insert_address, std::uintptr_t hook_addres
         0xFF,
         0xE2};
 
+    std::println("writing detour to {:#x}", detour_address);
     write(detour_address, detour_code);
+
+    if (::FlushInstructionCache(impl_->handle, reinterpret_cast<const void *>(detour_address), sizeof(detour_code)) ==
+        0)
+    {
+        throw std::runtime_error("failed to flush instruction cache");
+    }
 
     // account for the fact that the offset includes the size of the jmp instruction
     detour_address = detour_address - insert_address - 5;
@@ -379,7 +386,29 @@ void Process::set_hook(std::uintptr_t insert_address, std::uintptr_t hook_addres
         (detour_address >> 16) & 0xFF,
         (detour_address >> 24) & 0xFF};
 
+    const auto original_bytes = read(insert_address, sizeof(hook_code));
+
+    std::println("writing hook to {:#x}", insert_address);
     write(insert_address, hook_code);
+
+    if (::FlushInstructionCache(impl_->handle, reinterpret_cast<const void *>(insert_address), sizeof(hook_code)) == 0)
+    {
+        throw std::runtime_error("failed to flush instruction cache");
+    }
+
+    return {insert_address, hook_address, original_bytes};
+}
+
+void Process::remove_hook(const HookContext &context) const
+{
+    std::println("removing hook {:#x} {:#x}", context.insert_address, context.original_bytes.size());
+    write(context.insert_address, context.original_bytes);
+
+    if (::FlushInstructionCache(
+            impl_->handle, reinterpret_cast<const void *>(context.insert_address), context.original_bytes.size()) == 0)
+    {
+        throw std::runtime_error("failed to flush instruction cache");
+    }
 }
 
 std::vector<RemoteFunction> Process::address_of_function(std::string_view name) const
@@ -392,7 +421,7 @@ std::vector<RemoteFunction> Process::address_of_function(std::string_view name) 
     // enumerate all modules in the process
     do
     {
-        // windows won'tm tell us how many modules are loaded in the process, so we keep trying with larger buffers
+        // windows won't tell us how many modules are loaded in the process, so we keep trying with larger buffers
         // until we think we've got them all
         modules.resize(modules.size() * 2u);
 
@@ -417,9 +446,9 @@ std::vector<RemoteFunction> Process::address_of_function(std::string_view name) 
             throw std::runtime_error("failed to get module name");
         }
 
-        // shroten the module name to just the file name
+        // shorten the module name to just the file name
         const auto last_slash = std::string_view{module_name}.find_last_of('\\');
-        const std::string module_name_short(std::string_view{module_name}.substr(last_slash + 1));
+        const std::string module_name_short(std::string_view{module_name}.substr(last_slash + 3));
 
         ::MODULEINFO module_info{};
         if (::K32GetModuleInformation(impl_->handle, module, &module_info, sizeof(module_info)) == 0)
@@ -468,8 +497,8 @@ std::vector<RemoteFunction> Process::address_of_function(std::string_view name) 
         {
             std::string function_name{};
 
-            // the actual function names are stored contigulously in an array of null terminated strings, so no real
-            // option but to read them characte by character
+            // the actual function names are stored contiguously in an array of null terminated strings, so no real
+            // option but to read them character by character
             for (;;)
             {
                 const auto next_char =

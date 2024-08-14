@@ -1,4 +1,6 @@
 add_library(blind_io
+    disassembler.cpp
+    instruction.cpp
     memory_region.cpp
     memory_region_protection.cpp
     process_utils.cpp
@@ -23,3 +25,6 @@ target_include_directories(
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/blind_io_lib/include/blind_io>
     $<INSTALL_INTERFACE:include/blind_io>
 )
+
+target_link_libraries(blind_io PUBLIC capstone)
+
