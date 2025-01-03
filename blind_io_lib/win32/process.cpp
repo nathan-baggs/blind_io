@@ -170,10 +170,15 @@ std::vector<MemoryRegion> Process::memory_regions() const
     {
         if (mem_info.State == MEM_COMMIT)
         {
+            char module_name[MAX_PATH]{};
+            ::GetModuleFileNameExA(
+                impl_->handle, reinterpret_cast<HMODULE>(mem_info.AllocationBase), module_name, MAX_PATH);
+
             regions.push_back(
                 {reinterpret_cast<std::uintptr_t>(mem_info.BaseAddress),
                  mem_info.RegionSize,
-                 to_internal(mem_info.Protect)});
+                 to_internal(mem_info.Protect),
+                 module_name});
         }
 
         // advance address by size of region

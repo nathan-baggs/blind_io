@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cwchar>
 #include <memory>
 #include <string_view>
 
@@ -57,6 +58,11 @@ class Debugger
      *   Path of library to load.
      */
     void load_library(std::string_view path) const;
+
+    Process &process()
+    {
+        return process_;
+    }
 
   private:
     /** The process being debugged. */

@@ -9,6 +9,8 @@
 #include <algorithm>
 #include <cstdint>
 #include <filesystem>
+#include <format>
+#include <print>
 #include <ranges>
 #include <vector>
 
@@ -46,7 +48,10 @@ std::vector<std::uint32_t> get_pids()
            | std::ranges::to<std::vector>();
 }
 
-Process start_process(const std::filesystem::path &path, const std::filesystem::path &working_directory)
+Process start_process(
+    const std::filesystem::path &path,
+    const std::filesystem::path &working_directory,
+    bool start_suspended)
 {
     STARTUPINFOA si{};
     si.cb = sizeof(si);
@@ -54,19 +59,21 @@ Process start_process(const std::filesystem::path &path, const std::filesystem::
     PROCESS_INFORMATION pi{};
 
     if (::CreateProcessA(
-            path.string().c_str(),              // application name
-            nullptr,                            // command line
-            nullptr,                            // process attributes
-            nullptr,                            // thread attributes
-            FALSE,                              // inherit handles
-            0,                                  // creation flags
-            nullptr,                            // environment
-            working_directory.string().c_str(), // current directory
+            path.string().c_str(),                    // application name
+            nullptr,                                  // command line
+            nullptr,                                  // process attributes
+            nullptr,                                  // thread attributes
+            FALSE,                                    // inherit handles
+            (start_suspended) ? CREATE_SUSPENDED : 0, // creation flags
+            nullptr,                                  // environment
+            working_directory.string().c_str(),       // current directory
             &si,
             &pi) == 0)
     {
-        throw std::runtime_error("failed to start process");
+        throw std::runtime_error(std::format("failed to start process ({})", ::GetLastError()));
     }
+
+    std::println("started process with pid: {} ({})", pi.dwProcessId, ::GetLastError());
 
     return Process(pi.dwProcessId);
 }

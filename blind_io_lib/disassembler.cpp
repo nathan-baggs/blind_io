@@ -41,7 +41,7 @@ struct Disassembler::implementation
 Disassembler::Disassembler()
     : impl_(std::make_unique<implementation>())
 {
-    if (::cs_open(CS_ARCH_X86, CS_MODE_64, &impl_->handle) != CS_ERR_OK)
+    if (::cs_open(CS_ARCH_X86, CS_MODE_32, &impl_->handle) != CS_ERR_OK)
     {
         throw std::runtime_error("failed to initialise capstone");
     }

@@ -42,7 +42,10 @@ std::vector<std::uint32_t> get_pids();
  */
 std::vector<Process> find_process(std::string_view name);
 
-Process start_process(const std::filesystem::path &path, const std::filesystem::path &working_directory);
+Process start_process(
+    const std::filesystem::path &path,
+    const std::filesystem::path &working_directory,
+    bool start_suspended = false);
 
 /**
  * Replace a given memory pattern with another.
