@@ -351,6 +351,7 @@ HookContext Process::set_hook(std::uintptr_t insert_address, std::uintptr_t hook
 
     // mov r10, hook_address
     // jmp r10
+    assert(false);
     const std::uint8_t detour_code[] = {
         0x49,
         0xBA,
@@ -358,10 +359,6 @@ HookContext Process::set_hook(std::uintptr_t insert_address, std::uintptr_t hook
         (hook_address >> 8) & 0xFF,
         (hook_address >> 16) & 0xFF,
         (hook_address >> 24) & 0xFF,
-        (hook_address >> 32) & 0xFF,
-        (hook_address >> 40) & 0xFF,
-        (hook_address >> 48) & 0xFF,
-        (hook_address >> 56) & 0xFF,
         0x41,
         0xFF,
         0xE2};

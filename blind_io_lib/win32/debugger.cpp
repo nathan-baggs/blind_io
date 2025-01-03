@@ -59,23 +59,15 @@ Registers Debugger::registers(std::uint32_t tid) const
     }
 
     return {
-        .rax = context.Rax,
-        .rbx = context.Rbx,
-        .rcx = context.Rcx,
-        .rdx = context.Rdx,
-        .rsi = context.Rsi,
-        .rdi = context.Rdi,
-        .rsp = context.Rsp,
-        .rbp = context.Rbp,
-        .rip = context.Rip,
-        .r8 = context.R8,
-        .r9 = context.R9,
-        .r10 = context.R10,
-        .r11 = context.R11,
-        .r12 = context.R12,
-        .r13 = context.R13,
-        .r14 = context.R14,
-        .r15 = context.R15,
+        .eax = context.Eax,
+        .ebx = context.Ebx,
+        .ecx = context.Ecx,
+        .edx = context.Edx,
+        .esi = context.Esi,
+        .edi = context.Edi,
+        .esp = context.Esp,
+        .ebp = context.Ebp,
+        .eip = context.Eip,
     };
 }
 
