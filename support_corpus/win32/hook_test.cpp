@@ -42,6 +42,13 @@ int main()
 
     for (;;)
     {
+        const auto *code = reinterpret_cast<std::uint8_t *>(&::MessageBoxA);
+        for (auto i = 0u; i < 10; ++i)
+        {
+            std::print("{:x} ", code[i]);
+        }
+        std::println("");
+
         ::MessageBoxA(nullptr, str.c_str(), "Reversed array", MB_OK);
 
         char c{};

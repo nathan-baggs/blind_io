@@ -15,6 +15,15 @@ FetchContent_Declare(
 FetchContent_GetProperties(googletest)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(FETCHCONTENT_QUIET FALSE)
+
+FetchContent_Declare(
+    capstone
+    GIT_REPOSITORY https://github.com/capstone-engine/capstone
+    GIT_TAG 5.0.1)
+FetchContent_MakeAvailable(capstone)
+
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 add_subdirectory(blind_io_lib)
 add_subdirectory(blind_io_cmd)
